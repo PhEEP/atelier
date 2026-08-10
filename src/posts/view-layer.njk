@@ -22,19 +22,19 @@ permalink: /posts/view-layer/index.html
 
   <section class="block">
     <h2 class="section-head"><span class="num">01</span><span class="txt">The brief: the same principle, aimed at a screen</span></h2>
-    <p>Every session opens with a generated brief — active projects, what changed last time, anything urgent — built the same way part one's "derive, don't hand-maintain" principle described: computed from frontmatter fields and git commit history, not read off a status document someone kept up to date by hand. Nothing here is new; a dashboard is just a second place that principle gets to pay off, this time as something glanced at rather than something a script consumes.</p>
-    <p>Getting a freshness signal onto a screen surfaced a mistake the terminal version never had to confront. An early "how stale is this" indicator implied real-world recency — how long since something actually happened — when what it actually measured was documentation recency: how long since someone last wrote a sentence about it. The two diverge in a specific, misleading direction: a project can look frantic because every change to it touches a tracked file, while a project that's getting real, hands-on attention looks idle because nobody filed a note about a morning spent on it instead of at a keyboard.</p>
+    <p>Every session opens with a generated brief — active projects, what changed last time, anything urgent — built the same way as part one's "derive, don't hand-maintain" idea: pulled from frontmatter and git history, not read off a status doc someone kept up by hand. Nothing new here. A dashboard is just a second place that principle gets to pay off, glanced at instead of consumed by a script.</p>
+    <p>Putting a freshness signal on an actual screen surfaced a mistake the terminal version never had to face. An early "how stale is this" indicator implied real-world recency — how long since something actually happened — when what it measured was documentation recency: how long since someone wrote a sentence about it. Those two diverge in a specific, annoying direction. A project looks frantic because every change touches a tracked file. A project getting real, hands-on attention looks idle because nobody filed a note about a morning spent on it instead of at a keyboard.</p>
 
     <blockquote class="pull-quote">
       <p>The dashboard doesn't know what you did. It only ever knows what you wrote down.</p>
     </blockquote>
 
-    <p>The fix wasn't a better metric — there isn't one available from inside a text corpus — it was refusing to let the label claim more than the data supports. "Busy lately" became "written about a lot lately"; "gathering dust" became "no word in a long time." Small wording change, real correction: it moved the signal from a false claim about the world to a true claim about the record, which is the only claim a system built entirely on what people chose to type down is ever entitled to make. Any derived indicator is worth this same check — does the label match what's actually being measured, or what you'd like it to mean?</p>
+    <p>The fix wasn't a better metric — there isn't one, not from inside a text corpus — it was not letting the label claim more than the data actually backs up. "Busy lately" became "written about a lot lately." "Gathering dust" became "no word in a long time." Small wording change, real correction: moved the signal from a false claim about the world to a true claim about the record, which is the only kind of claim a system built entirely on what people bothered to type is ever entitled to make. Worth running any derived indicator through the same check — does the label match what's actually measured, or just what you wish it meant?</p>
   </section>
 
   <section class="block">
     <h2 class="section-head"><span class="num">02</span><span class="txt">Chat as a second write surface, same boundary, finer grain</span></h2>
-    <p>A phone-accessible chat interface turns the dashboard from a read-only view into a second write surface into the same repo — talk to the store, have it write back, from wherever a laptop isn't. It reuses the trust-tiering idea from part one, but applies it one level finer than "which surface": within a single conversation, on a single surface, the write path branches by <em>what kind of file is being changed</em>.</p>
+    <p>A phone-accessible chat interface turns the dashboard from a read-only view into a second write surface — talk to the store, have it write back, from wherever a laptop isn't. Same trust-tiering idea as part one, just one level finer than "which surface." Within a single conversation, on a single surface, the write path branches by <em>what kind of file is being changed</em>.</p>
 
     <div class="panel">
       <div class="panel-label">write policy — enforced outside the model's control</div>
@@ -49,19 +49,24 @@ permalink: /posts/view-layer/index.html
   # a supervising process decides what happens next</pre>
     </div>
 
-    <p>The chat model itself holds no git tool and no direct write access — it edits files the way any editor session would, and a process outside the conversation performs the actual commit once the turn is over, deciding the write path by file type rather than by asking the model to self-police. This is part one's "sub-agents return data; only the orchestrator writes" boundary, instantiated literally rather than metaphorically: the chat model is the sub-agent here, the surrounding server process is the orchestrator, and the write policy isn't a preference the model could be talked out of, because applying it was never the model's job in the first place.</p>
+    <p>The chat model has no git tool and no direct write access. It edits files the way any editor session would, and a process outside the conversation does the actual commit once the turn's over — deciding the write path by file type, not by asking the model to police itself. This is part one's "sub-agents return data, only the orchestrator writes" boundary, just literal instead of metaphorical this time: the chat model is the sub-agent, the server process is the orchestrator, and the write policy was never something the model could get talked out of, because applying it was never the model's job to begin with.</p>
   </section>
 
   <section class="block">
     <h2 class="section-head"><span class="num">03</span><span class="txt">The gate that rejects, not deletes</span></h2>
-    <p>Part one told the story of a bug where a pre-merge check accidentally destroyed the work it was supposed to be reviewing — a cleanup step ran on every exit path out of a function, including the failure one, so a failing check meant "revert everything, commit nothing, say nothing." That piece drew the lesson about silent failure. The lesson worth carrying into this one is about what a gate is actually for.</p>
+    <p>Part one told the story of a bug where a pre-merge check accidentally destroyed the work it was supposed to be reviewing — a cleanup step ran on every exit path out of a function, including the failure one, so a failing check meant "revert everything, commit nothing, say nothing." That piece drew the lesson about silent failure. The one worth carrying into this piece is about what a gate is actually for.</p>
 
     <div class="callout">
       <div class="mark">the rule</div>
-      <p>A review gate has exactly two acceptable outcomes: pass, or reject-but-keep. The moment its failure path can make work disappear, it has stopped being a quality gate and become a shredder wearing a quality gate's name.</p>
+      <p>A review gate has exactly two acceptable outcomes: pass, or reject-and-keep. The second its failure path can make work disappear, it's stopped being a quality gate and started being a shredder wearing a quality gate's name.</p>
     </div>
 
-    <p>The fix was an ordering change, and the ordering is the generalizable part. The failing version ran the check first and only assembled a real commit if it passed — so a rejection had nothing durable to fall back to. The working version assembles a recoverable commit on a local branch <em>first</em>, runs the check against it, and only decides afterward whether that branch gets proposed further or just reported as "failed, here's where it's parked." Same check, same failure rate — the only thing that moved is which side of the check the point of no return sits on.</p>
+    <figure class="meme">
+      <img src="https://media.tenor.com/1kBHblaT7G0AAAAM/shredder.gif" alt="A paper shredder destroying a document." loading="lazy">
+      <figcaption>what the old lint gate was, functionally</figcaption>
+    </figure>
+
+    <p>The fix was just an ordering change, and the ordering is the part that generalizes. The failing version ran the check first and only assembled a real commit if it passed, so a rejection had nothing durable to land on. The working version assembles a recoverable commit on a local branch <em>first</em>, runs the check against that, and only afterward decides whether it goes further or just gets reported as "failed, here's where it's parked." Same check. Same failure rate. The only thing that moved is which side of it the point of no return sits on.</p>
   </section>
 
   <section class="block">
@@ -69,12 +74,19 @@ permalink: /posts/view-layer/index.html
     <p>The last view is a calendar — a second, bidirectional interface for controlling when scheduled agent work happens, alongside dragging, deleting, and rescheduling by hand. Two decisions here are worth separating, because one is a restraint and the other is a reuse.</p>
 
     <h3 class="sub-head">Reuse: an existing sync standard, not a bespoke format</h3>
-    <p>Rather than invent an event format and a bespoke sync protocol, this is built on an existing, widely supported calendar-sync standard — the same "don't build what's already solved" instinct that picked git over a bespoke memory format in part one. Any standard calendar client can subscribe to it without custom software on the reading end; the work is entirely in exposing the repo's schedule data through a protocol that already has decades of interoperable clients.</p>
+    <p>Instead of inventing an event format and a bespoke sync protocol, this runs on an existing, widely supported calendar-sync standard — same "don't build what's already solved" instinct that picked git over a bespoke memory format back in part one. Any standard calendar client can subscribe with zero custom software on the reading end. The actual work is entirely in exposing the repo's schedule data through a protocol that's already had decades of interoperable clients built against it.</p>
 
     <h3 class="sub-head">Restraint: mechanical sync only, no interpretation yet</h3>
-    <p>The tempting next step — let a model read a freeform event description and turn it into a new task — was deliberately left out of the first version. What shipped is strictly mechanical: reschedule, delete, edit a recurrence rule, and have that sync cleanly in both directions. No model sits between an event and an action yet. That's a real capability being withheld, not a limitation being tolerated — the interpretive layer needs a genuine pattern of use to design against, and guessing at that pattern now would mean building a judgment call before there's evidence for what judgment it should make. Ship the plumbing, live with it, let the actual use reveal what the smarter version needs to handle.</p>
+    <p>The tempting next step — let a model read a freeform event description and turn it into a new task — got left out of the first version on purpose. What shipped is strictly mechanical: reschedule, delete, edit a recurrence rule, sync cleanly both ways. No model sits between an event and an action yet. That's a real capability being held back, not a limitation I'm stuck with — the interpretive layer needs an actual pattern of use to design against, and guessing at that pattern now means building a judgment call with zero evidence for what judgment it should make. Ship the plumbing. Live with it. Let real use tell you what the smarter version actually needs to handle.</p>
 
-    <p>One structural lesson came out of getting even the mechanical version live: a client library's "discover the available calendars for you" step can be structurally unable to see a calendar that was deliberately placed outside any single account's own space — a shared collection meant for more than one reader doesn't live in the path that kind of discovery walks, no matter how correctly the permissions are set. The fix wasn't a workaround inside the discovery step; it was skipping discovery entirely and pointing the client at the known location directly. Worth remembering generally: an abstraction that promises to find things for you is only doing you a favor when the set of things is actually unknown. When it's a small, closed, already-known set, asking the abstraction to rediscover it is pure overhead — and, occasionally, structurally impossible.</p>
+    <p>Getting even the mechanical version live taught me one structural lesson: a client library's "discover the available calendars for you" step can be structurally unable to see a calendar that was deliberately placed outside any single account's own space. A shared collection meant for more than one reader just doesn't live in the path that kind of discovery walks, no matter how correctly the permissions are set. The fix wasn't a workaround inside discovery — it was skipping discovery entirely and pointing the client straight at the known location.</p>
+
+    <figure class="meme">
+      <img src="https://media.tenor.com/tGr6gmgHsVYAAAAM/always-has-been.gif" alt="Two astronauts in space, one pointing a gun at the other, the always-has-been meme." loading="lazy">
+      <figcaption>me, after finding out discovery could never see it, structurally, from the start</figcaption>
+    </figure>
+
+    <p>An abstraction that promises to find things for you is only doing you a favor when the set of things is genuinely unknown. When it's small, closed, and already known, asking the abstraction to rediscover it is pure overhead — and once in a while, just not possible.</p>
 
     <figure class="diagram-overflow">
       <svg viewBox="0 0 640 300" role="img" aria-label="One server process mediates three different views onto the same memory repo: a read-only brief, a bidirectional chat surface, and a bidirectional calendar sync. All three reach the repo only through that one process.">
@@ -115,9 +127,9 @@ permalink: /posts/view-layer/index.html
 
   <section class="block">
     <h2 class="section-head"><span class="num">05</span><span class="txt">Access grows sideways, not from scratch</span></h2>
-    <p>One question every one of these views eventually raises: what happens when a second person needs to read or write this system? The honest answer turned out to be "most of that work was already done, by accident of how trust was modeled in the first place."</p>
-    <p>Permission was never attached to an account. It's attached to the content — a flag on a file marking it as something that should take a deliberate act to open rather than something a reader drifts into, checked before that content ever reaches a model or a screen. Nothing about that check asks who's asking. So when a second reader shows up, the gate that already existed still works, unmodified — what's missing isn't a permission system, it's a thin layer of identity to tell two people's sessions apart, layered on top of protections that don't need to know the difference.</p>
-    <p>That's a cheap kind of extensibility to buy, and it wasn't bought on purpose — it's a side effect of modeling trust as a property of the content instead of a property of the account holding the door. Worth doing deliberately next time, rather than noticing it as a happy accident after the fact.</p>
+    <p>Every one of these views eventually raises the same question: what happens when a second person needs to read or write this system? Honest answer — most of that work was already done, by accident, because of how trust got modeled in the first place.</p>
+    <p>Permission was never attached to an account. It's attached to the content: a flag on a file marking it as something that takes a deliberate act to open, rather than something a reader just drifts into, checked before that content ever reaches a model or a screen. That check doesn't ask who's asking. So when a second reader shows up, the gate that already existed just keeps working, unmodified. What's missing isn't a permission system. It's a thin layer of identity to tell two people's sessions apart, sitting on top of protections that never needed to know the difference.</p>
+    <p>Cheap extensibility, and I didn't buy it on purpose — it's a side effect of modeling trust as a property of the content instead of the account holding the door. Worth doing on purpose next time instead of noticing it as a lucky accident afterward.</p>
   </section>
 
   <section class="block">

@@ -21,6 +21,11 @@ permalink: /posts/memory-substrate/index.html
     <p>So I gave it a real memory instead. External, versioned, and its job to keep current — a git repo of markdown files, a few read/write rules, and a pattern for how agent work touches it. None of it's exotic on its own. What's actually worth writing down is why it ended up shaped this way, which is mostly the scar tissue from watching the first, naive version of each piece fail on me.</p>
   </section>
 
+  <figure class="meme">
+    <img src="https://media.tenor.com/Ar8GpQzHy1MAAAAM/smashing-the-alarm-clock-phil.gif" alt="Phil from Groundhog Day smashing his alarm clock, waking up to the exact same day again." loading="lazy">
+    <figcaption>every session, before this existed</figcaption>
+  </figure>
+
   <section class="block">
     <h2 class="section-head"><span class="num">01</span><span class="txt">The core bet: a git repo, not a database</span></h2>
     <p>Two decisions sit upstream of everything else. Memory lives in plain markdown files, not database rows or vector embeddings. And the store is a normal git repo, synced the ordinary way — commits, branches, pull requests.</p>
@@ -37,12 +42,12 @@ permalink: /posts/memory-substrate/index.html
 
   <section class="block">
     <h2 class="section-head"><span class="num">02</span><span class="txt">Two tiers of instruction</span></h2>
-    <p>Not all context is the same kind of fact, so the system splits it before anything reaches per-topic memory:</p>
+    <p>Not all context is the same kind of fact, so I split it before any of it reaches per-topic memory:</p>
     <ul>
-      <li><strong>A global instruction file</strong>, loaded in every project, answering <em>how should you behave</em> — tone, when to ask before acting, how to handle sensitive data, how to run sub-agents. Behavioral, not situational.</li>
-      <li><strong>A project instruction file</strong>, checked into each repo, answering <em>what's true about this codebase</em> — structure, conventions, the session start/end protocol. Anyone working in that repo, human or agent, gets the same brief.</li>
+      <li><strong>A global instruction file</strong>, loaded in every project, that answers <em>how should you behave</em> — tone, when to ask before acting, how to handle sensitive data, how to run sub-agents. Behavioral, not situational.</li>
+      <li><strong>A project instruction file</strong>, checked into each repo, that answers <em>what's true about this codebase</em> — structure, conventions, the session start/end protocol. Anyone working in that repo gets the same brief, human or agent.</li>
     </ul>
-    <p>Where the two overlap, the project file wins — a repo's own conventions override the general defaults, the same way a linter config in a subdirectory overrides the one at the root. Neither file is allowed to hold facts that belong in the layer below: durable, dated, individual facts.</p>
+    <p>Where they overlap, the project file wins. Same reason a linter config in a subdirectory beats the one at the root. Neither file gets to hold the durable, dated, individual facts — those belong one layer down.</p>
 
     <div class="panel">
       <div class="panel-label">excerpt — global instructions (trimmed)</div>
@@ -86,15 +91,15 @@ than being corrected.</pre>
 
   <section class="block">
     <h2 class="section-head"><span class="num">04</span><span class="txt">Derive state, don't hand-maintain it</span></h2>
-    <p>The system generates a session-start brief — active projects, what changed last time, anything urgent — from a script, not a hand-kept status doc. The script pulls two things: frontmatter fields (status, priorities, deadlines) and <strong>git commit history</strong> for freshness, rather than a manually typed "last updated" field.</p>
-    <p>That second part matters more than it sounds. A hand-maintained timestamp drifts the moment someone forgets to touch it — and someone always eventually forgets. Git history doesn't drift; it's a true, mechanical record of when a file actually changed, which turns "how recently was this touched" from a maintenance chore into a query. The same logic runs one level up: the brief itself is regenerated each session rather than kept as a standing document, so it can never go stale in a way that outlives its own usefulness.</p>
-    <p>The general shape: anywhere the system needs to answer "is this current," prefer deriving the answer from a system of record that's mechanically hard to lie to (git, filesystem timestamps, test results) over a field a human or an agent has to remember to update by hand.</p>
+    <p>Every session opens with a generated brief — active projects, what changed last time, anything urgent. A script builds it from frontmatter (status, priorities, deadlines) plus <strong>git commit history</strong> for freshness. Not a hand-typed "last updated" field.</p>
+    <p>That part matters more than it sounds like it should. A hand-maintained timestamp drifts the second someone forgets to touch it, and someone always forgets eventually. Git history doesn't drift. It's a mechanical record of when a file actually changed, so "how recently was this touched" stops being a chore and just becomes a query. Same logic one level up: the brief itself gets regenerated every session instead of living as a standing doc, so it can't go stale in a way that outlives its own point.</p>
+    <p>General rule I keep coming back to: anywhere the system has to answer "is this current," derive it from something mechanically hard to lie to — git, filesystem timestamps, test results — instead of a field someone has to remember to update.</p>
   </section>
 
   <section class="block">
     <h2 class="section-head"><span class="num">05</span><span class="txt">Multiple surfaces, one sync layer</span></h2>
-    <p>The same repo gets written to from more than one place — a primary workstation, an always-on home server, and a phone client for quick edits on the go. All of it is git; there's no separate sync protocol layered on top. What differs is the write path, and it's matched to how much that surface should be trusted unsupervised.</p>
-    <p>The workstation and home server commit directly — a human is present, or the change is low-stakes and reviewable after the fact. The phone client, which drives edits through a chat interface with less friction and less scrutiny per edit, opens a <strong>pull request</strong> instead of pushing to the main branch. Same repo, same format, but a review gate appears automatically on the surface where it's needed and stays out of the way on the surfaces where it isn't.</p>
+    <p>The same repo gets written to from more than one place — a primary workstation, an always-on home server, a phone client for quick edits on the go. All of it's git. No separate sync protocol bolted on top. What differs is the write path, matched to how much I trust that surface unsupervised.</p>
+    <p>Workstation and home server commit directly. A human's present, or the change is low-stakes enough to review after the fact. The phone client's different — it drives edits through a chat interface, less friction, less scrutiny per edit — so it opens a <strong>pull request</strong> instead of pushing straight to main. Same repo, same format, but the review gate shows up automatically where it's actually needed and stays out of the way everywhere else.</p>
 
     <figure class="diagram-overflow">
       <svg viewBox="0 0 640 300" role="img" aria-label="Three write surfaces feed one git repository. The workstation and home server commit directly; the phone client opens a pull request that must be merged before changes reach the repo.">
@@ -135,18 +140,25 @@ than being corrected.</pre>
       <figcaption>Write paths into the memory repo, matched to trust level. Direct-commit surfaces skip review; the lower-scrutiny surface routes through a pull request before anything lands.</figcaption>
     </figure>
 
-    <p>The other lesson here came from concurrency, not trust: more than one session can be active against the same repo at once. A branch can change underfoot, a commit from elsewhere can land mid-task, an in-progress stash can vanish because another process touched the same files. The fix isn't a locking mechanism — it's a habit: check actual state (<code class="inline">git status</code>, current branch) immediately before any commit or push rather than trusting what was true at session start, and if something looks off, stop and surface it instead of forcing through. Git already tells you the truth; the discipline is asking it right before you act, not once at the beginning.</p>
+    <p>The other lesson came from concurrency, not trust. More than one session can be active against the same repo at once — a branch changes underfoot, a commit lands mid-task from somewhere else, an in-progress stash just vanishes because another process touched the same files. No locking mechanism fixes that. It's a habit instead: check the real state (<code class="inline">git status</code>, current branch) right before any commit or push, not whatever was true when the session started. If something looks off, stop and say so instead of forcing it through. Git will tell you the truth. You just have to ask it right before you act, not once at the beginning and never again.</p>
   </section>
 
   <section class="block">
     <h2 class="section-head"><span class="num">06</span><span class="txt">Orchestrator and sub-agents</span></h2>
-    <p>For anything with independent, parallelizable pieces, one agent plans and holds context — the orchestrator — while scoped sub-agents execute pieces and report back. Two rules make this pay for itself rather than just adding ceremony.</p>
+    <p>For anything with independent, parallelizable pieces: one agent plans and holds context — the orchestrator — while scoped sub-agents go do pieces of it and report back. Two rules make this actually pay for itself instead of just adding ceremony.</p>
 
     <h3 class="sub-head">Match the model to the task</h3>
-    <p>Not every step deserves the most capable model available. A lightweight validation or review pass runs on a fast, cheap model; general implementation and research runs on a mid-tier default; a genuinely hard, ambiguous architecture problem escalates to the frontier model — but only after flagging <em>why</em> it warrants the cost, since that's a spending decision as much as a technical one. Cost-awareness is a first-class routing input, not an afterthought applied after the fact.</p>
+    <p>Not every step deserves the most capable model available. A quick validation pass runs on something fast and cheap. General implementation and research runs on a mid-tier default. A genuinely hard, ambiguous architecture problem escalates to the frontier model — but only after saying <em>why</em> it's worth the cost, because that's a spending decision as much as a technical one. Cost-awareness is a routing input from the start, not something bolted on after the bill shows up.</p>
 
-    <h3 class="sub-head">Sub-agents return data; only the orchestrator writes</h3>
-    <p>This is the load-bearing rule. A sub-agent can read, research, and reason — but it hands its findings back as data, and only the orchestrator is allowed to commit anything to the memory store. It's a security boundary as much as a workflow one: a sub-agent that ingests an untrusted web page or PDF can be manipulated by content embedded in that page, so the boundary between "content I fetched" and "instructions I follow" has to be structural, not a matter of the model staying polite. External content gets wrapped in explicit delimiters before it ever reaches a model, and it's referenced from instructions, never interpolated into them — ordinary prompt-injection hygiene, applied to a system that happens to be personal rather than customer-facing.</p>
+    <h3 class="sub-head">Sub-agents return data. Only the orchestrator writes.</h3>
+    <p>This is the one rule everything else leans on. A sub-agent reads, researches, reasons — then hands its findings back as data, and only the orchestrator gets to commit anything to the memory store.</p>
+
+    <figure class="meme">
+      <img src="https://media.giphy.com/media/5gd8W8aCtXH3orC0BL/giphy.gif" alt="I am the captain now — the line from Captain Phillips, used here for who actually gets to write." loading="lazy">
+      <figcaption>the whole security model, honestly</figcaption>
+    </figure>
+
+    <p>It's a security boundary as much as a workflow one. A sub-agent that ingests an untrusted web page or PDF can get manipulated by whatever's embedded in that page, so the line between "content I fetched" and "instructions I follow" has to be structural — not just the model staying polite about it. External content gets wrapped in explicit delimiters before it ever reaches a model, referenced from instructions rather than pasted into them. Ordinary prompt-injection hygiene, just applied to something personal instead of customer-facing.</p>
 
     <figure class="diagram-overflow">
       <svg viewBox="0 0 640 300" role="img" aria-label="An orchestrator writes to the memory repo. Three sub-agents on lighter, medium, and heavier models return data up to the orchestrator, but none of them has a write path to the repo directly.">
@@ -189,7 +201,7 @@ than being corrected.</pre>
   <section class="block">
     <h2 class="section-head"><span class="num">07</span><span class="txt">War story: the silent revert</span></h2>
     <p>The most useful bug in this whole thing didn't even look like a memory-architecture problem. A "propose changes" flow — the thing that turns an agent's edits into a reviewable pull request — quietly started eating entire sessions of work. Files reverted to what they were before, nothing got committed anywhere, no error, nothing. For a while it genuinely looked like something else was interfering, because the pattern lined up too well: files that had recently merged "survived," files that hadn't "kept reverting." Real correlation. Exactly backwards as an explanation.</p>
-    <p>What was actually happening: a cleanup step that restores the working tree ran on <em>every</em> exit path out of the function, including the failure path. A pre-flight lint check sat upstream of the git operations, and it was failing on literally every proposal for a dumb environment reason — a spawned linter resolving against the wrong runtime version. So every single time: make the edits, fail the lint check, revert the files, commit nothing, say nothing. The files that "survived" had just gotten lucky and merged before this started; the ones that "kept reverting" hadn't, so the same revert function kept stomping them, over and over, looking for all the world like sabotage.</p>
+    <p>What was actually happening: a cleanup step that restores the working tree ran on <em>every</em> exit path out of the function, including the failure one. A pre-flight lint check sat upstream of the git operations and was failing on literally every proposal for a dumb environment reason — a spawned linter resolving against the wrong runtime version. So every single time: make the edits, fail the lint check, revert the files, commit nothing, say nothing. Hell of a way to lose real work and never even get an error message about it. The files that "survived" had just gotten lucky and merged before this started; the ones that "kept reverting" hadn't, so the same revert function kept stomping them, over and over, looking for all the world like sabotage.</p>
 
     <figure class="meme">
       <img src="https://media.giphy.com/media/26tPplGWjN0xLybiU/giphy.gif" alt="This Is Fine — the cartoon dog sitting in a room that's on fire, saying this is fine." loading="lazy">
