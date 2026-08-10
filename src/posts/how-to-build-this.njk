@@ -1,0 +1,123 @@
+---
+layout: base.njk
+title: "How to Actually Build This: A Structural Guide"
+eyebrow: "Systems note — architecture, part four"
+dek: "The first three pieces explained why it's shaped this way. This one's the how — a maturity ladder, real starter files, and the mistakes worth skipping on your way there."
+date: 2026-08-10T22:00:00
+readTime: "7 min"
+tags: ["guide", "getting-started", "architecture"]
+series: "systems-notes"
+seriesPart: 4
+seriesTotal: 4
+seriesShort: "the structural guide"
+permalink: /posts/how-to-build-this/index.html
+---
+<article>
+
+  <section class="block">
+    <h2 class="section-head"><span class="txt">Start smaller than you think</span></h2>
+    <p class="lede">You don't need the dashboard. You don't need trust-tiered write paths or a scheduled agent. You need one git repo and the discipline to write things down in it. Everything else in this series is what that turned into after months of actual use — not what you should build on day one.</p>
+
+    <figure class="meme">
+      <img src="https://media.tenor.com/0KNP7HcdR0IAAAAM/it-ain%27t-much.gif" alt="A farmer looking out over a small plot of land. It ain't much, but it's honest work." loading="lazy">
+      <figcaption>the entire correct starting point</figcaption>
+    </figure>
+
+    <p>Here's the actual minimum: a git repo, one instructions file, one folder for facts. That's it. If you set up nothing else from this piece, set up that.</p>
+  </section>
+
+  <section class="block">
+    <h2 class="section-head"><span class="num">01</span><span class="txt">The maturity ladder</span></h2>
+    <p>Five levels, each one a real precondition for the next, not a nice-to-have you can grab out of order:</p>
+    <ul class="principles">
+      <li><span class="pn">0</span><span class="pt"><strong>A markdown file you paste into every conversation.</strong> Works fine for a couple weeks. Stops working the moment you have more context than fits in a paste.</span></li>
+      <li><span class="pn">1</span><span class="pt"><strong>A git repo, two tiers of instructions, one fact per file.</strong> Global behavioral rules separate from per-project conventions; durable facts separate from both. <a href="/posts/memory-substrate/">Part one</a> is the full case for this layer.</span></li>
+      <li><span class="pn">2</span><span class="pt"><strong>Derived state instead of hand-maintained state, and trust-tiered writes.</strong> A generated brief instead of a status doc you forget to update; a review gate that matches the risk of whatever surface is writing. Also part one.</span></li>
+      <li><span class="pn">3</span><span class="pt"><strong>A view layer — dashboard, chat, whatever fits.</strong> Only once the substrate already works from a terminal alone. The view is a convenience layer, never the only place the data lives. <a href="/posts/view-layer/">Part two</a> is the argument for building one, and for keeping it optional.</span></li>
+      <li><span class="pn">4</span><span class="pt"><strong>Small, boring, unattended agents.</strong> One low-stakes job, PR-gated, nothing auto-merged. Only after the trust boundaries from level 1–2 have actually been tested, not just written down. <a href="/posts/the-long-game/">Part three</a> covers why the order matters.</span></li>
+    </ul>
+    <p>Most of the value is in levels 0 through 2. Don't feel behind if you never get to 4 — plenty of real, working setups stop at 2 and are better for it.</p>
+  </section>
+
+  <section class="block">
+    <h2 class="section-head"><span class="num">02</span><span class="txt">The actual starter files</span></h2>
+    <p>Real content, not a description of content. Copy these, then cut what doesn't fit.</p>
+
+    <div class="panel">
+      <div class="panel-label">CLAUDE.md (or your agent's equivalent instructions file)</div>
+      <pre># Instructions
+
+## Session Start
+1. Read `context.md` — how to act (tone, when to ask before doing
+   something, how to handle sensitive data).
+2. Read `about-me.md` — who you're working with.
+3. `git pull`.
+4. Skim `projects/*/overview.md` frontmatter for status and next
+   steps. Give a short brief: active projects, what changed last
+   time, anything urgent. Don't wait to be asked for this.
+
+## Session End
+git add -A && git commit -m "session sync" && git push
+
+## Memory Format
+One fact, one file, in `memory/`. Frontmatter:
+---
+name: short-kebab-slug
+type: user | feedback | project | reference
+tags: [tag1, tag2]
+---
+The fact. For feedback/project entries, add **Why:** and
+**How to apply:** lines so it's usable later, not just logged.
+
+## What NOT to save here
+Anything the repo or git history already records. This file is
+for what isn't derivable — decisions, corrections, preferences —
+not a second copy of the codebase.</pre>
+    </div>
+
+    <div class="panel">
+      <div class="panel-label">projects/&lt;name&gt;/overview.md</div>
+      <pre>---
+status: active | paused | done
+priority: low | medium | high
+---
+
+## Decisions
+- 2026-08-10 — chose X over Y because Z. Only real decisions
+  go here, not routine implementation detail.
+
+## Next Up
+- The specific next action. Not "continue working on X" —
+  name the actual thing.
+
+## Session Notes
+- What happened, dated, most recent first.</pre>
+    </div>
+
+    <p>That's the whole level-1 setup. No script required yet — "read the projects folder and summarize it" is a fine brief generator until it isn't. Only build the derived-state script from part one once hand-reading the folder actually gets slow.</p>
+  </section>
+
+  <section class="block">
+    <h2 class="section-head"><span class="num">03</span><span class="txt">Mistakes worth skipping</span></h2>
+    <p>Three real ones from this series, generalized so you don't have to hit them yourself:</p>
+    <div class="callout">
+      <div class="mark">from part one</div>
+      <p>Test your failure paths, not just the happy one. The bug that ate real work for an entire session had a passing 30-assertion test suite — because nothing tested what happens when a check <em>fails</em>. If a gate can reject something, write the test for the rejection, not just the pass.</p>
+    </div>
+    <div class="callout">
+      <div class="mark">from part two</div>
+      <p>Label derived signals honestly. "How stale is this" quietly became "how recently was this <em>written about</em>," and the label kept claiming the first thing while measuring the second. Any time you compute a signal from a text corpus, say what it actually measures — not what you wish it measured.</p>
+    </div>
+    <div class="callout">
+      <div class="mark">from part three</div>
+      <p>Decide the trust-tiering rule before you need it, not after a scare. "It's just for me" is not a reason to skip deciding which surfaces can write directly and which need review — it's the reason it's easy to skip, which is different.</p>
+    </div>
+  </section>
+
+  <section class="block">
+    <h2 class="section-head"><span class="txt">Steal this, don't worship it</span></h2>
+    <p>None of the specific choices here are sacred. Markdown and git are the right call because they're boring and legible, not because they're the only correct answer — if your team already lives in a wiki that a model can read and write to, that might genuinely beat a git repo for you. The two-tier instruction split, the frontmatter schema, the maturity ladder — all of it is a starting shape to bend, not a spec to match exactly.</p>
+    <p>What's worth keeping regardless of the specifics: derive what you can instead of hand-maintaining it, match review friction to actual risk instead of a blanket rule, and don't build the exciting part until the boring part has survived real use. That's the actual throughline of this whole series, level 0 through 4.</p>
+  </section>
+
+</article>
