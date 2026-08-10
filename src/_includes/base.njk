@@ -54,6 +54,11 @@
     {%- endif %}
 
     {{ content | safe }}
+
+    <footer class="close">
+      <pre class="footer-prompt" aria-hidden="true"><span class="path">{{ site.title }}</span><span class="dollar"> $</span> <span class="cursor">_</span></pre>
+      <p>built by hand, mostly with an agent, in a repo that'll outlive the model. <a href="/feed.xml">rss</a> · <a href="https://github.com/PhEEP/atelier">source</a></p>
+    </footer>
   </div>
 
 </body>

@@ -16,23 +16,23 @@ permalink: /posts/memory-substrate/index.html
 
   <section class="block">
     <h2 class="section-head"><span class="txt">The problem</span></h2>
-    <p class="lede">Every session with a coding agent starts from zero. The model reasons well in the moment and knows nothing about last week — not because it can't remember, but because by default there's nowhere for a memory to <em>live</em> between conversations.</p>
-    <p>That's fine for a one-off task. It stops being fine the moment the agent becomes a daily tool spanning a dozen threads of work at once, because "start from zero" and "there's a decision from three weeks ago that still matters" collide constantly. The obvious workaround — paste more context into every prompt — doesn't scale, and it puts the burden on exactly the wrong side: a human re-deriving state a machine should be tracking.</p>
-    <p>What follows is the other approach: give the agent a real, external, versioned memory, and make it responsible for keeping that memory current. It's a git repository of markdown files, a couple of read/write conventions, and an orchestration pattern for the agent work that touches it. None of the individual pieces are exotic. What's worth writing up is why they're shaped the way they are — mostly lessons from watching the naive version of each one fail.</p>
+    <p class="lede">Every session with a coding agent starts from zero. It's sharp in the moment and remembers nothing from last week, because there's nowhere for a memory to actually <em>live</em> between conversations.</p>
+    <p>Fine for a one-off task. Not fine once it's a daily tool running across a dozen threads at once — "start from zero" runs straight into "there's a decision from three weeks ago that still matters," constantly. Pasting more context into every prompt doesn't scale, and honestly it's backwards: a human re-deriving state a machine should've been tracking the whole time.</p>
+    <p>So I gave it a real memory instead. External, versioned, and its job to keep current — a git repo of markdown files, a few read/write rules, and a pattern for how agent work touches it. None of it's exotic on its own. What's actually worth writing down is why it ended up shaped this way, which is mostly the scar tissue from watching the first, naive version of each piece fail on me.</p>
   </section>
 
   <section class="block">
     <h2 class="section-head"><span class="num">01</span><span class="txt">The core bet: a git repo, not a database</span></h2>
-    <p>Two decisions sit upstream of everything else. Memory lives in plain markdown files, not database rows or vector embeddings. And the store is a normal git repository, synced the ordinary way — commits, branches, pull requests.</p>
-    <p>Neither is a clever choice, and that's on purpose. A markdown file is the one format a human and a language model can both read and edit without a translation layer — no query language, no admin UI, no export step. A git repo already solves versioning, diffing, blame, merge, and multi-device sync: problems a bespoke memory system would otherwise reinvent, worse, from scratch.</p>
-    <p>RAG over a vector store is a good answer to "search a large, mostly-static corpus." It's a worse answer to "keep a small, living, editable record current," because it adds an indexing step, a similarity metric, and a re-embedding pipeline in a place where <code class="inline">git log</code> and <code class="inline">grep</code> already do the job.</p>
+    <p>Two decisions sit upstream of everything else. Memory lives in plain markdown files, not database rows or vector embeddings. And the store is a normal git repo, synced the ordinary way — commits, branches, pull requests.</p>
+    <p>Neither is clever. That's kind of the point. A markdown file is the one format both I and the model can read and edit without a translation layer in between — no query language, no admin UI, nothing to export. Git already does versioning, diffing, blame, merge, multi-device sync. I'd have had to badly reinvent all of that from scratch otherwise.</p>
+    <p>RAG over a vector store is genuinely a good answer to "search a huge, mostly-static pile of docs." It's a bad answer to "keep a small, living record current," because now there's an indexing step and a similarity metric and a re-embedding pipeline sitting in a spot where <code class="inline">git log</code> and <code class="inline">grep</code> already do the job, for free, forever.</p>
     <p>The result is unglamorous on purpose.</p>
 
     <blockquote class="pull-quote">
       <p>The store is a directory of markdown files that would still be useful if every model on earth vanished tomorrow.</p>
     </blockquote>
 
-    <p>That's not a throwaway line — it's the actual test a piece of this system has to pass before it's allowed in. Every format choice, every sync mechanism, every convention below got measured against it: would this still make sense to a human with nothing but a text editor and <code class="inline">git log</code>? If the answer was no, the piece didn't ship, no matter how much cleaner it would have made the agent-facing side.</p>
+    <p>I mean that as a literal test, not a nice line to end a section on. Every format choice, every sync mechanism, every convention below got run through it: would this still make sense to a person holding nothing but a text editor and <code class="inline">git log</code>? If not, it didn't ship — didn't matter how much cleaner it would've made things on the agent's side.</p>
   </section>
 
   <section class="block">
@@ -80,8 +80,8 @@ existed under a different name. One search costs less
 than being corrected.</pre>
     </div>
 
-    <p>Recall is deliberately two-tier. An index file holds one line per fact — cheap enough to load in full at the start of every session, so most recall never touches the filesystem beyond one file. When the index doesn't surface a match, the fallback is a grep across frontmatter tags before concluding nothing exists. Fast path first, exhaustive path second — the same shape as an index versus a table scan, run over a folder of markdown instead of a database.</p>
-    <p>The harder discipline is what's kept <em>out</em>. Anything the repo or its git history already records is explicitly off-limits for a memory file — code structure, past fixes, commit history. Memory exists for what isn't derivable: a decision's reasoning, a stated preference, a correction. A memory store that also mirrors the codebase is just a second, staler copy of it.</p>
+    <p>Recall is two-tier on purpose. An index file holds one line per fact, cheap enough to load in full every session, so most lookups never touch the filesystem beyond that one file. When the index misses, fall back to grepping frontmatter tags before deciding nothing's there. Cheap path first, exhaustive path second — basically an index versus a table scan, just run over a folder of markdown instead of a database.</p>
+    <p>What's harder is what I keep <em>out</em> of it. If the repo or its git history already records something, it's not allowed in a memory file — no code structure, no past fixes, none of that. Memory is for what you can't derive: a decision's reasoning, a stated preference, a correction someone had to make twice. A memory store that also mirrors the codebase is just a worse, staler copy of the codebase.</p>
   </section>
 
   <section class="block">
@@ -188,38 +188,39 @@ than being corrected.</pre>
 
   <section class="block">
     <h2 class="section-head"><span class="num">07</span><span class="txt">War story: the silent revert</span></h2>
-    <p>The most useful bug in this system's life didn't look like a memory-architecture problem at all. A "propose changes" flow — the mechanism that turns an agent's edits into a reviewable pull request — started silently discarding entire sessions of work. Files reverted to their prior state, nothing was committed anywhere, and there was no error. It looked, for a while, like an external process interfering, because the actual pattern was a very convincing coincidence: files that happened to have merged recently "survived," and files that hadn't yet "kept reverting" — a correlation that was real, and exactly backwards as evidence.</p>
-    <p>The real cause: a cleanup step that restored the working tree to its pre-change state ran on <em>every</em> exit path out of the function — including the failure path. A pre-flight lint check had been added upstream of the git operations, and it was failing on every single proposal for an environment reason (a spawned linter binary resolving against the wrong runtime version). So the actual sequence, every time, was: make the edits, fail the lint check, revert the files, commit nothing, report nothing. The "survivors" had simply already merged and come back on the next pull, before this bug started; the "victims" hadn't, so the same revert function was the last thing to touch them, over and over.</p>
+    <p>The most useful bug in this whole thing didn't even look like a memory-architecture problem. A "propose changes" flow — the thing that turns an agent's edits into a reviewable pull request — quietly started eating entire sessions of work. Files reverted to what they were before, nothing got committed anywhere, no error, nothing. For a while it genuinely looked like something else was interfering, because the pattern lined up too well: files that had recently merged "survived," files that hadn't "kept reverting." Real correlation. Exactly backwards as an explanation.</p>
+    <p>What was actually happening: a cleanup step that restores the working tree ran on <em>every</em> exit path out of the function, including the failure path. A pre-flight lint check sat upstream of the git operations, and it was failing on literally every proposal for a dumb environment reason — a spawned linter resolving against the wrong runtime version. So every single time: make the edits, fail the lint check, revert the files, commit nothing, say nothing. The files that "survived" had just gotten lucky and merged before this started; the ones that "kept reverting" hadn't, so the same revert function kept stomping them, over and over, looking for all the world like sabotage.</p>
+
+    <figure class="meme">
+      <img src="https://media.giphy.com/media/26tPplGWjN0xLybiU/giphy.gif" alt="This Is Fine — the cartoon dog sitting in a room that's on fire, saying this is fine." loading="lazy">
+      <figcaption>accurate rendering of the system's own internal state for most of that session</figcaption>
+    </figure>
 
     <div class="callout">
-      <div class="mark">the rule</div>
-      <p>When something "never works," check whether it's silently switched off, or silently swallowing its own errors, before re-diagnosing the implementation underneath it. A disabled feature and a bare <code class="inline">catch {}</code> both produce symptoms that look exactly like a subtly wrong implementation — and cost far less to rule out first.</p>
+      <div class="mark">note to self</div>
+      <p>When something "never works," check whether it's switched off or quietly swallowing its own errors before you start re-diagnosing the implementation. A disabled feature and a bare <code class="inline">catch {}</code> look identical to a subtly wrong implementation from the outside — and they're both way cheaper to rule out first.</p>
     </div>
 
-    <p>The fix had two parts, and only one of them was the actual lint bug. First, the destructive step moved to run only <em>after</em> a local commit exists — so a failing check now leaves the work recoverable on a branch instead of gone. Second, the test suite gained coverage for the failure path specifically: branch created, content correct, nothing pushed to the remote, working tree clean, the user-facing message naming the recovery branch. That path had zero coverage before, which is exactly why a change that silently ate real work could pass a suite of thirty other assertions without tripping any of them.</p>
+    <p>The fix was two things, and only one of them was the actual lint bug. First: the destructive step now only runs <em>after</em> a local commit exists, so a failing check leaves the work sitting recoverable on a branch instead of just gone. Second: the test suite finally got coverage for the failure path — branch created, content correct, nothing pushed, tree clean, the message actually naming the recovery branch. That path had zero tests before, which is exactly how a change that silently ate real work sailed through thirty other passing assertions without tripping a single one of them.</p>
   </section>
 
   <section class="block">
-    <h2 class="section-head"><span class="txt">What actually carried over</span></h2>
-    <p>Stripped of the specifics, the design principles that survived contact with daily use:</p>
+    <h2 class="section-head"><span class="txt">What actually stuck</span></h2>
+    <p>Strip the specifics out and this is what survived actually living with it every day:</p>
     <ul class="principles">
-      <li><span class="pn">→</span><span class="pt"><strong>Prefer formats a human can read without a viewer.</strong> Markdown and git over a database, every time the corpus is small enough that this is actually an option.</span></li>
-      <li><span class="pn">→</span><span class="pt"><strong>Derive state; don't hand-maintain it.</strong> Anything a script can compute from git history or the filesystem shouldn't also be a field a human has to remember to update.</span></li>
-      <li><span class="pn">→</span><span class="pt"><strong>Give every write path a trust level, and match the review gate to it.</strong> The same repo can be commit-direct in one place and PR-gated in another — the gate follows the risk, not a blanket policy.</span></li>
-      <li><span class="pn">→</span><span class="pt"><strong>Sub-agents are for parallelism and cost control, not for skipping oversight.</strong> Data flows up; writes flow through exactly one place.</span></li>
-      <li><span class="pn">→</span><span class="pt"><strong>Silent failure is the default failure mode to hunt for first.</strong> An "off" switch and a swallowed error both masquerade as a subtler bug than they are.</span></li>
-      <li><span class="pn">→</span><span class="pt"><strong>The store doesn't need to be a complete record to be useful.</strong> It only needs to beat starting from zero — and it does, by a wide margin.</span></li>
+      <li><span class="pn">→</span><span class="pt"><strong>Use a format you can read without a viewer.</strong> Markdown and git beat a database any time the corpus is small enough for that to be a real option, which is more often than people assume.</span></li>
+      <li><span class="pn">→</span><span class="pt"><strong>Derive state, don't hand-maintain it.</strong> If a script can compute it from git history or the filesystem, it's not also allowed to be a field someone has to remember to update.</span></li>
+      <li><span class="pn">→</span><span class="pt"><strong>Every write path gets a trust level, and the review gate follows it.</strong> Same repo, commit-direct here, PR-gated there — matched to the actual risk, not one blanket rule.</span></li>
+      <li><span class="pn">→</span><span class="pt"><strong>Sub-agents buy parallelism and cost control, not permission to skip oversight.</strong> Data flows up. Writes go through exactly one place, no exceptions.</span></li>
+      <li><span class="pn">→</span><span class="pt"><strong>When in doubt, assume it's failing silently.</strong> An "off" switch and a swallowed error both dress up as a subtler bug than they are, and it's cheap to rule them out first.</span></li>
+      <li><span class="pn">→</span><span class="pt"><strong>It doesn't need to be a complete record to earn its keep.</strong> It just has to beat starting from zero, and it clears that bar easily.</span></li>
     </ul>
   </section>
 
   <section class="block">
     <h2 class="section-head"><span class="txt">The honest limits</span></h2>
-    <p>This isn't a life-log and doesn't try to be. There's always a gap between what the system knows and what actually happened, because nobody's narrating their day into a markdown file in real time — the store only ever holds what someone deliberately wrote down. That's a feature to design around, not a flaw to apologize for: a system that states its blind spots plainly is more trustworthy than one that quietly implies it sees everything.</p>
-    <p>Six months in, the interesting part isn't any single mechanism — it's that the whole thing is boring in the right ways, and still passes the test from the top of this piece: it would still be useful with every model gone. The store doesn't <em>need</em> a dashboard to stay trustworthy — a text editor and <code class="inline">git log</code> are still enough to audit any of it — and that's exactly what makes building a dashboard on top a good idea rather than a crutch: a view layered over a substrate that doesn't depend on it, not a substitute for one that does. That's a separate write-up. What carried this one was that the parts that break are debuggable with tools that predate any of this by decades: <code class="inline">git log</code>, <code class="inline">grep</code>, a test suite.</p>
+    <p>It's not a life-log and I'm not pretending it is. There's always a gap between what the system knows and what actually happened — nobody's narrating their day into a markdown file in real time, it only ever holds what got deliberately written down. I'd rather design around that gap than paper over it. A system that admits its blind spots straight out is more trustworthy than one that quietly acts like it sees everything.</p>
+    <p>Six months in, the interesting part isn't any one mechanism, it's that the whole thing is boring in exactly the right ways, and it still clears the bar from the top of this piece: still useful with every model gone. The store doesn't need a dashboard to stay honest — a text editor and <code class="inline">git log</code> get you the whole way there — which is precisely why building one on top turned out to be worth doing rather than a crutch. That's its own write-up. What carried this one is that the parts that break are debuggable with tools older than any of this: <code class="inline">git log</code>, <code class="inline">grep</code>, a test suite.</p>
   </section>
 
 </article>
-
-<footer class="close">
-  architecture notes · written for internal sharing
-</footer>
