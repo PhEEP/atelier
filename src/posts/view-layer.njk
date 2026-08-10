@@ -1,0 +1,132 @@
+---
+layout: base.njk
+title: "The View Layer: A Dashboard, a Chat Surface, and a Calendar on Top of a Memory That Didn't Need Any of Them"
+eyebrow: "Systems note — architecture, part two"
+dek: "Part one argued the memory store stands on its own — markdown and git, legible with nothing but a text editor. This half is about what got built on top of it anyway, and why none of it quietly undoes that property."
+date: 2026-08-10T15:00:00
+readTime: "9 min"
+tags: ["architecture", "dashboards", "sync protocols"]
+series: "systems-notes"
+seriesPart: 2
+seriesTotal: 2
+seriesShort: "the view layer"
+permalink: /posts/view-layer/index.html
+---
+<article>
+
+  <section class="block">
+    <h2 class="section-head"><span class="txt">Two claims, only one of them made</span></h2>
+    <p class="lede">Part one made a point of the memory store not needing a dashboard to stay trustworthy. That's true, and worth restating rather than walking back: a text editor and <code class="inline">git log</code> are still enough to audit any of it, end to end.</p>
+    <p>But "doesn't need one" and "gets nothing from one" are different claims, and only the first was ever made. A directory of markdown files is legible; it isn't <em>convenient</em>. Reading commit logs cold every morning to reconstruct "what's active, what changed, what needs attention" is a real cost, and it's a cost a human pays, repeatedly, for something a computer can compute once and hand over. That's the job description for everything in this piece: a dashboard, a chat surface, and a calendar, all reading and writing the same substrate from part one, none of them a second source of truth. A lens, not a dependency.</p>
+  </section>
+
+  <section class="block">
+    <h2 class="section-head"><span class="num">01</span><span class="txt">The brief: the same principle, aimed at a screen</span></h2>
+    <p>Every session opens with a generated brief — active projects, what changed last time, anything urgent — built the same way part one's "derive, don't hand-maintain" principle described: computed from frontmatter fields and git commit history, not read off a status document someone kept up to date by hand. Nothing here is new; a dashboard is just a second place that principle gets to pay off, this time as something glanced at rather than something a script consumes.</p>
+    <p>Getting a freshness signal onto a screen surfaced a mistake the terminal version never had to confront. An early "how stale is this" indicator implied real-world recency — how long since something actually happened — when what it actually measured was documentation recency: how long since someone last wrote a sentence about it. The two diverge in a specific, misleading direction: a project can look frantic because every change to it touches a tracked file, while a project that's getting real, hands-on attention looks idle because nobody filed a note about a morning spent on it instead of at a keyboard.</p>
+
+    <blockquote class="pull-quote">
+      <p>The dashboard doesn't know what you did. It only ever knows what you wrote down.</p>
+    </blockquote>
+
+    <p>The fix wasn't a better metric — there isn't one available from inside a text corpus — it was refusing to let the label claim more than the data supports. "Busy lately" became "written about a lot lately"; "gathering dust" became "no word in a long time." Small wording change, real correction: it moved the signal from a false claim about the world to a true claim about the record, which is the only claim a system built entirely on what people chose to type down is ever entitled to make. Any derived indicator is worth this same check — does the label match what's actually being measured, or what you'd like it to mean?</p>
+  </section>
+
+  <section class="block">
+    <h2 class="section-head"><span class="num">02</span><span class="txt">Chat as a second write surface, same boundary, finer grain</span></h2>
+    <p>A phone-accessible chat interface turns the dashboard from a read-only view into a second write surface into the same repo — talk to the store, have it write back, from wherever a laptop isn't. It reuses the trust-tiering idea from part one, but applies it one level finer than "which surface": within a single conversation, on a single surface, the write path branches by <em>what kind of file is being changed</em>.</p>
+
+    <div class="panel">
+      <div class="panel-label">write policy — enforced outside the model's control</div>
+      <pre>on turn complete:
+  changed = diff(before, after)
+  for file in changed:
+    if file.ext == '.md' and file.path not in code_dirs:
+      commit_directly(file)          # memory: reviewed after the fact
+    else:
+      route_to_pr_branch(file)       # code/config: reviewed before it lands
+  # the agent never calls git — it edits files;
+  # a supervising process decides what happens next</pre>
+    </div>
+
+    <p>The chat model itself holds no git tool and no direct write access — it edits files the way any editor session would, and a process outside the conversation performs the actual commit once the turn is over, deciding the write path by file type rather than by asking the model to self-police. This is part one's "sub-agents return data; only the orchestrator writes" boundary, instantiated literally rather than metaphorically: the chat model is the sub-agent here, the surrounding server process is the orchestrator, and the write policy isn't a preference the model could be talked out of, because applying it was never the model's job in the first place.</p>
+  </section>
+
+  <section class="block">
+    <h2 class="section-head"><span class="num">03</span><span class="txt">The gate that rejects, not deletes</span></h2>
+    <p>Part one told the story of a bug where a pre-merge check accidentally destroyed the work it was supposed to be reviewing — a cleanup step ran on every exit path out of a function, including the failure one, so a failing check meant "revert everything, commit nothing, say nothing." That piece drew the lesson about silent failure. The lesson worth carrying into this one is about what a gate is actually for.</p>
+
+    <div class="callout">
+      <div class="mark">the rule</div>
+      <p>A review gate has exactly two acceptable outcomes: pass, or reject-but-keep. The moment its failure path can make work disappear, it has stopped being a quality gate and become a shredder wearing a quality gate's name.</p>
+    </div>
+
+    <p>The fix was an ordering change, and the ordering is the generalizable part. The failing version ran the check first and only assembled a real commit if it passed — so a rejection had nothing durable to fall back to. The working version assembles a recoverable commit on a local branch <em>first</em>, runs the check against it, and only decides afterward whether that branch gets proposed further or just reported as "failed, here's where it's parked." Same check, same failure rate — the only thing that moved is which side of the check the point of no return sits on.</p>
+  </section>
+
+  <section class="block">
+    <h2 class="section-head"><span class="num">04</span><span class="txt">The calendar: same instinct, a different domain</span></h2>
+    <p>The last view is a calendar — a second, bidirectional interface for controlling when scheduled agent work happens, alongside dragging, deleting, and rescheduling by hand. Two decisions here are worth separating, because one is a restraint and the other is a reuse.</p>
+
+    <h3 class="sub-head">Reuse: an existing sync standard, not a bespoke format</h3>
+    <p>Rather than invent an event format and a bespoke sync protocol, this is built on an existing, widely supported calendar-sync standard — the same "don't build what's already solved" instinct that picked git over a bespoke memory format in part one. Any standard calendar client can subscribe to it without custom software on the reading end; the work is entirely in exposing the repo's schedule data through a protocol that already has decades of interoperable clients.</p>
+
+    <h3 class="sub-head">Restraint: mechanical sync only, no interpretation yet</h3>
+    <p>The tempting next step — let a model read a freeform event description and turn it into a new task — was deliberately left out of the first version. What shipped is strictly mechanical: reschedule, delete, edit a recurrence rule, and have that sync cleanly in both directions. No model sits between an event and an action yet. That's a real capability being withheld, not a limitation being tolerated — the interpretive layer needs a genuine pattern of use to design against, and guessing at that pattern now would mean building a judgment call before there's evidence for what judgment it should make. Ship the plumbing, live with it, let the actual use reveal what the smarter version needs to handle.</p>
+
+    <p>One structural lesson came out of getting even the mechanical version live: a client library's "discover the available calendars for you" step can be structurally unable to see a calendar that was deliberately placed outside any single account's own space — a shared collection meant for more than one reader doesn't live in the path that kind of discovery walks, no matter how correctly the permissions are set. The fix wasn't a workaround inside the discovery step; it was skipping discovery entirely and pointing the client at the known location directly. Worth remembering generally: an abstraction that promises to find things for you is only doing you a favor when the set of things is actually unknown. When it's a small, closed, already-known set, asking the abstraction to rediscover it is pure overhead — and, occasionally, structurally impossible.</p>
+
+    <figure class="diagram-overflow">
+      <svg viewBox="0 0 640 300" role="img" aria-label="One server process mediates three different views onto the same memory repo: a read-only brief, a bidirectional chat surface, and a bidirectional calendar sync. All three reach the repo only through that one process.">
+        <defs>
+          <marker id="arrow3" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M0,0 L10,5 L0,10 z" fill="currentColor"/>
+          </marker>
+        </defs>
+
+        <rect x="235" y="222" width="170" height="58" rx="8" fill="none" stroke="currentColor" stroke-width="1.6"/>
+        <text x="320" y="255" text-anchor="middle" font-size="13.5" font-weight="700">memory repo</text>
+
+        <rect x="235" y="120" width="170" height="58" rx="7" fill="none" stroke="var(--accent)" stroke-width="1.4"/>
+        <text x="320" y="153" text-anchor="middle" font-size="13" fill="var(--accent)">server process</text>
+
+        <path d="M320,178 L320,222" fill="none" stroke="var(--accent)" stroke-width="1.4" marker-end="url(#arrow3)"/>
+        <text x="332" y="203" font-size="11" fill="var(--accent)">sole write path</text>
+
+        <rect x="20" y="20" width="150" height="50" rx="7" fill="none" stroke="currentColor" stroke-width="1.1"/>
+        <text x="95" y="41" text-anchor="middle" font-size="11.5">brief</text>
+        <text x="95" y="56" text-anchor="middle" font-size="10.5" fill="currentColor" opacity="0.65">read only</text>
+
+        <rect x="245" y="20" width="150" height="50" rx="7" fill="none" stroke="currentColor" stroke-width="1.1"/>
+        <text x="320" y="41" text-anchor="middle" font-size="11.5">chat</text>
+        <text x="320" y="56" text-anchor="middle" font-size="10.5" fill="currentColor" opacity="0.65">read + gated write</text>
+
+        <rect x="470" y="20" width="150" height="50" rx="7" fill="none" stroke="currentColor" stroke-width="1.1"/>
+        <text x="545" y="41" text-anchor="middle" font-size="11.5">calendar</text>
+        <text x="545" y="56" text-anchor="middle" font-size="10.5" fill="currentColor" opacity="0.65">read + mechanical write</text>
+
+        <path d="M95,70 C 150,96 250,104 288,116" fill="none" stroke="currentColor" stroke-width="1.1" marker-end="url(#arrow3)"/>
+        <path d="M320,70 L320,116" fill="none" stroke="currentColor" stroke-width="1.1" marker-end="url(#arrow3)"/>
+        <path d="M545,70 C 490,96 390,104 352,116" fill="none" stroke="currentColor" stroke-width="1.1" marker-end="url(#arrow3)"/>
+      </svg>
+      <figcaption>Three views with three different interaction models, all reaching the repo through exactly one mediating process. Adding a fourth view adds a consumer, not a new place the store can be written to.</figcaption>
+    </figure>
+  </section>
+
+  <section class="block">
+    <h2 class="section-head"><span class="num">05</span><span class="txt">Access grows sideways, not from scratch</span></h2>
+    <p>One question every one of these views eventually raises: what happens when a second person needs to read or write this system? The honest answer turned out to be "most of that work was already done, by accident of how trust was modeled in the first place."</p>
+    <p>Permission was never attached to an account. It's attached to the content — a flag on a file marking it as something that should take a deliberate act to open rather than something a reader drifts into, checked before that content ever reaches a model or a screen. Nothing about that check asks who's asking. So when a second reader shows up, the gate that already existed still works, unmodified — what's missing isn't a permission system, it's a thin layer of identity to tell two people's sessions apart, layered on top of protections that don't need to know the difference.</p>
+    <p>That's a cheap kind of extensibility to buy, and it wasn't bought on purpose — it's a side effect of modeling trust as a property of the content instead of a property of the account holding the door. Worth doing deliberately next time, rather than noticing it as a happy accident after the fact.</p>
+  </section>
+
+  <section class="block">
+    <h2 class="section-head"><span class="txt">Where this leaves the pair</span></h2>
+    <p>Part one is the argument that the substrate has to work with nothing on top of it. Part two is the argument that "nothing on top of it" was never the goal — it was the constraint that kept everything built on top of it honest. Every view here can vanish tomorrow and the store loses nothing but convenience; that's exactly what makes the convenience worth building.</p>
+  </section>
+
+</article>
+
+<footer class="close">
+  architecture notes · part two of two · written for internal sharing
+</footer>

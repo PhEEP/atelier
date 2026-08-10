@@ -1,0 +1,32 @@
+---
+layout: base.njk
+title: atelier
+permalink: /index.html
+---
+<header class="masthead home">
+  <div class="eyebrow">Systems notes</div>
+  <h1 class="title">atelier</h1>
+  <p class="dek">{{ site.description }}</p>
+</header>
+
+<ul class="post-list">
+  {%- for post in collections.posts | reverse %}
+  <li>
+    <a class="post-title" href="{{ post.url }}">{{ post.data.title }}</a>
+    <p class="post-dek">{{ post.data.dek }}</p>
+    <div class="post-meta">
+      <span>{{ post.date | readableDate }}</span>
+      <span>·</span>
+      <span>{{ post.data.readTime }}</span>
+      {%- if post.data.seriesPart %}
+      <span>·</span>
+      <span>part {{ post.data.seriesPart }} of {{ post.data.seriesTotal }}</span>
+      {%- endif %}
+    </div>
+  </li>
+  {%- endfor %}
+</ul>
+
+<footer class="close">
+  {{ site.title }} · {{ site.url | replace("https://", "") }}
+</footer>

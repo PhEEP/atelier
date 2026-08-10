@@ -1,0 +1,225 @@
+---
+layout: base.njk
+title: "Giving an AI Coding Agent a Memory That Survives the Session"
+eyebrow: "Systems note — architecture"
+dek: "Notes on a git-backed memory store and a multi-agent orchestration pattern I've been running daily for months — what it's made of, why it's shaped the way it is, and the bug that taught me the most about it."
+date: 2026-08-10T09:00:00
+readTime: "10 min"
+tags: ["architecture", "agents", "git"]
+series: "systems-notes"
+seriesPart: 1
+seriesTotal: 2
+seriesShort: "the memory substrate"
+permalink: /posts/memory-substrate/index.html
+---
+<article>
+
+  <section class="block">
+    <h2 class="section-head"><span class="txt">The problem</span></h2>
+    <p class="lede">Every session with a coding agent starts from zero. The model reasons well in the moment and knows nothing about last week — not because it can't remember, but because by default there's nowhere for a memory to <em>live</em> between conversations.</p>
+    <p>That's fine for a one-off task. It stops being fine the moment the agent becomes a daily tool spanning a dozen threads of work at once, because "start from zero" and "there's a decision from three weeks ago that still matters" collide constantly. The obvious workaround — paste more context into every prompt — doesn't scale, and it puts the burden on exactly the wrong side: a human re-deriving state a machine should be tracking.</p>
+    <p>What follows is the other approach: give the agent a real, external, versioned memory, and make it responsible for keeping that memory current. It's a git repository of markdown files, a couple of read/write conventions, and an orchestration pattern for the agent work that touches it. None of the individual pieces are exotic. What's worth writing up is why they're shaped the way they are — mostly lessons from watching the naive version of each one fail.</p>
+  </section>
+
+  <section class="block">
+    <h2 class="section-head"><span class="num">01</span><span class="txt">The core bet: a git repo, not a database</span></h2>
+    <p>Two decisions sit upstream of everything else. Memory lives in plain markdown files, not database rows or vector embeddings. And the store is a normal git repository, synced the ordinary way — commits, branches, pull requests.</p>
+    <p>Neither is a clever choice, and that's on purpose. A markdown file is the one format a human and a language model can both read and edit without a translation layer — no query language, no admin UI, no export step. A git repo already solves versioning, diffing, blame, merge, and multi-device sync: problems a bespoke memory system would otherwise reinvent, worse, from scratch.</p>
+    <p>RAG over a vector store is a good answer to "search a large, mostly-static corpus." It's a worse answer to "keep a small, living, editable record current," because it adds an indexing step, a similarity metric, and a re-embedding pipeline in a place where <code class="inline">git log</code> and <code class="inline">grep</code> already do the job.</p>
+    <p>The result is unglamorous on purpose.</p>
+
+    <blockquote class="pull-quote">
+      <p>The store is a directory of markdown files that would still be useful if every model on earth vanished tomorrow.</p>
+    </blockquote>
+
+    <p>That's not a throwaway line — it's the actual test a piece of this system has to pass before it's allowed in. Every format choice, every sync mechanism, every convention below got measured against it: would this still make sense to a human with nothing but a text editor and <code class="inline">git log</code>? If the answer was no, the piece didn't ship, no matter how much cleaner it would have made the agent-facing side.</p>
+  </section>
+
+  <section class="block">
+    <h2 class="section-head"><span class="num">02</span><span class="txt">Two tiers of instruction</span></h2>
+    <p>Not all context is the same kind of fact, so the system splits it before anything reaches per-topic memory:</p>
+    <ul>
+      <li><strong>A global instruction file</strong>, loaded in every project, answering <em>how should you behave</em> — tone, when to ask before acting, how to handle sensitive data, how to run sub-agents. Behavioral, not situational.</li>
+      <li><strong>A project instruction file</strong>, checked into each repo, answering <em>what's true about this codebase</em> — structure, conventions, the session start/end protocol. Anyone working in that repo, human or agent, gets the same brief.</li>
+    </ul>
+    <p>Where the two overlap, the project file wins — a repo's own conventions override the general defaults, the same way a linter config in a subdirectory overrides the one at the root. Neither file is allowed to hold facts that belong in the layer below: durable, dated, individual facts.</p>
+
+    <div class="panel">
+      <div class="panel-label">excerpt — global instructions (trimmed)</div>
+      <pre># Behavioral Rules
+- No sycophancy. Say when you're wrong and move on.
+- Check a tool is still maintained before recommending it.
+- Sensitive data: compute locally, share only aggregates,
+  never route secrets through a hosted tool.
+
+# Agent Orchestration
+- Spawn sub-agents for parallelizable work; coordinate
+  results yourself. Don't do sequentially what can run
+  in parallel.
+- Match model to task complexity (see §6).</pre>
+    </div>
+  </section>
+
+  <section class="block">
+    <h2 class="section-head"><span class="num">03</span><span class="txt">The part that writes itself</span></h2>
+    <p>Instructions describe behavior. A separate mechanism handles <em>facts</em> — decisions, corrections, standing preferences — that accumulate over time and have no business being hardcoded into an instructions file. Each fact is its own markdown file with a small, consistent frontmatter schema:</p>
+
+    <div class="panel">
+      <div class="panel-label">auto-memory/tool-currency-check.md</div>
+      <pre>---
+name: tool-currency-check
+description: Verify a tool is still maintained before
+  recommending it
+type: feedback
+tags: [tooling, recommendations, maintenance]
+---
+
+Confirmed: recommended a tool that turned out to be in
+maintenance-only mode; an actively maintained successor
+existed under a different name. One search costs less
+than being corrected.</pre>
+    </div>
+
+    <p>Recall is deliberately two-tier. An index file holds one line per fact — cheap enough to load in full at the start of every session, so most recall never touches the filesystem beyond one file. When the index doesn't surface a match, the fallback is a grep across frontmatter tags before concluding nothing exists. Fast path first, exhaustive path second — the same shape as an index versus a table scan, run over a folder of markdown instead of a database.</p>
+    <p>The harder discipline is what's kept <em>out</em>. Anything the repo or its git history already records is explicitly off-limits for a memory file — code structure, past fixes, commit history. Memory exists for what isn't derivable: a decision's reasoning, a stated preference, a correction. A memory store that also mirrors the codebase is just a second, staler copy of it.</p>
+  </section>
+
+  <section class="block">
+    <h2 class="section-head"><span class="num">04</span><span class="txt">Derive state, don't hand-maintain it</span></h2>
+    <p>The system generates a session-start brief — active projects, what changed last time, anything urgent — from a script, not a hand-kept status doc. The script pulls two things: frontmatter fields (status, priorities, deadlines) and <strong>git commit history</strong> for freshness, rather than a manually typed "last updated" field.</p>
+    <p>That second part matters more than it sounds. A hand-maintained timestamp drifts the moment someone forgets to touch it — and someone always eventually forgets. Git history doesn't drift; it's a true, mechanical record of when a file actually changed, which turns "how recently was this touched" from a maintenance chore into a query. The same logic runs one level up: the brief itself is regenerated each session rather than kept as a standing document, so it can never go stale in a way that outlives its own usefulness.</p>
+    <p>The general shape: anywhere the system needs to answer "is this current," prefer deriving the answer from a system of record that's mechanically hard to lie to (git, filesystem timestamps, test results) over a field a human or an agent has to remember to update by hand.</p>
+  </section>
+
+  <section class="block">
+    <h2 class="section-head"><span class="num">05</span><span class="txt">Multiple surfaces, one sync layer</span></h2>
+    <p>The same repo gets written to from more than one place — a primary workstation, an always-on home server, and a phone client for quick edits on the go. All of it is git; there's no separate sync protocol layered on top. What differs is the write path, and it's matched to how much that surface should be trusted unsupervised.</p>
+    <p>The workstation and home server commit directly — a human is present, or the change is low-stakes and reviewable after the fact. The phone client, which drives edits through a chat interface with less friction and less scrutiny per edit, opens a <strong>pull request</strong> instead of pushing to the main branch. Same repo, same format, but a review gate appears automatically on the surface where it's needed and stays out of the way on the surfaces where it isn't.</p>
+
+    <figure class="diagram-overflow">
+      <svg viewBox="0 0 640 300" role="img" aria-label="Three write surfaces feed one git repository. The workstation and home server commit directly; the phone client opens a pull request that must be merged before changes reach the repo.">
+        <defs>
+          <marker id="arrow1" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M0,0 L10,5 L0,10 z" fill="currentColor"/>
+          </marker>
+        </defs>
+
+        <rect x="30" y="24" width="180" height="60" rx="7" fill="none" stroke="currentColor" stroke-width="1.2"/>
+        <text x="120" y="59" text-anchor="middle" font-size="13">Workstation</text>
+
+        <rect x="30" y="118" width="180" height="60" rx="7" fill="none" stroke="currentColor" stroke-width="1.2"/>
+        <text x="120" y="153" text-anchor="middle" font-size="13">Home server</text>
+
+        <rect x="30" y="212" width="180" height="60" rx="7" fill="none" stroke="currentColor" stroke-width="1.2"/>
+        <text x="120" y="247" text-anchor="middle" font-size="13">Phone client</text>
+
+        <rect x="270" y="220" width="94" height="42" rx="6" fill="none" stroke="var(--accent)" stroke-width="1.2" stroke-dasharray="4 3"/>
+        <text x="317" y="246" text-anchor="middle" font-size="11.5" fill="var(--accent)">pull request</text>
+
+        <rect x="440" y="100" width="170" height="90" rx="8" fill="none" stroke="currentColor" stroke-width="1.6"/>
+        <text x="525" y="139" text-anchor="middle" font-size="13.5" font-weight="700">memory repo</text>
+        <text x="525" y="158" text-anchor="middle" font-size="11" fill="currentColor" opacity="0.65">(git)</text>
+
+        <path d="M210,54 C 320,54 380,110 438,128" fill="none" stroke="currentColor" stroke-width="1.2" marker-end="url(#arrow1)"/>
+        <text x="300" y="70" font-size="11" fill="currentColor" opacity="0.75">commit</text>
+
+        <path d="M210,148 C 320,148 380,150 438,150" fill="none" stroke="currentColor" stroke-width="1.2" marker-end="url(#arrow1)"/>
+        <text x="300" y="141" font-size="11" fill="currentColor" opacity="0.75">commit</text>
+
+        <path d="M210,242 L 268,241" fill="none" stroke="var(--accent)" stroke-width="1.2" marker-end="url(#arrow1)"/>
+        <text x="222" y="233" font-size="11" fill="var(--accent)">opens</text>
+
+        <path d="M364,232 C 400,220 415,190 438,172" fill="none" stroke="var(--accent)" stroke-width="1.2" marker-end="url(#arrow1)"/>
+        <text x="378" y="203" font-size="11" fill="var(--accent)">merge (reviewed)</text>
+      </svg>
+      <figcaption>Write paths into the memory repo, matched to trust level. Direct-commit surfaces skip review; the lower-scrutiny surface routes through a pull request before anything lands.</figcaption>
+    </figure>
+
+    <p>The other lesson here came from concurrency, not trust: more than one session can be active against the same repo at once. A branch can change underfoot, a commit from elsewhere can land mid-task, an in-progress stash can vanish because another process touched the same files. The fix isn't a locking mechanism — it's a habit: check actual state (<code class="inline">git status</code>, current branch) immediately before any commit or push rather than trusting what was true at session start, and if something looks off, stop and surface it instead of forcing through. Git already tells you the truth; the discipline is asking it right before you act, not once at the beginning.</p>
+  </section>
+
+  <section class="block">
+    <h2 class="section-head"><span class="num">06</span><span class="txt">Orchestrator and sub-agents</span></h2>
+    <p>For anything with independent, parallelizable pieces, one agent plans and holds context — the orchestrator — while scoped sub-agents execute pieces and report back. Two rules make this pay for itself rather than just adding ceremony.</p>
+
+    <h3 class="sub-head">Match the model to the task</h3>
+    <p>Not every step deserves the most capable model available. A lightweight validation or review pass runs on a fast, cheap model; general implementation and research runs on a mid-tier default; a genuinely hard, ambiguous architecture problem escalates to the frontier model — but only after flagging <em>why</em> it warrants the cost, since that's a spending decision as much as a technical one. Cost-awareness is a first-class routing input, not an afterthought applied after the fact.</p>
+
+    <h3 class="sub-head">Sub-agents return data; only the orchestrator writes</h3>
+    <p>This is the load-bearing rule. A sub-agent can read, research, and reason — but it hands its findings back as data, and only the orchestrator is allowed to commit anything to the memory store. It's a security boundary as much as a workflow one: a sub-agent that ingests an untrusted web page or PDF can be manipulated by content embedded in that page, so the boundary between "content I fetched" and "instructions I follow" has to be structural, not a matter of the model staying polite. External content gets wrapped in explicit delimiters before it ever reaches a model, and it's referenced from instructions, never interpolated into them — ordinary prompt-injection hygiene, applied to a system that happens to be personal rather than customer-facing.</p>
+
+    <figure class="diagram-overflow">
+      <svg viewBox="0 0 640 300" role="img" aria-label="An orchestrator writes to the memory repo. Three sub-agents on lighter, medium, and heavier models return data up to the orchestrator, but none of them has a write path to the repo directly.">
+        <defs>
+          <marker id="arrow2" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M0,0 L10,5 L0,10 z" fill="currentColor"/>
+          </marker>
+        </defs>
+
+        <rect x="235" y="16" width="170" height="56" rx="8" fill="none" stroke="currentColor" stroke-width="1.6"/>
+        <text x="320" y="49" text-anchor="middle" font-size="13.5" font-weight="700">memory repo</text>
+
+        <rect x="235" y="128" width="170" height="56" rx="7" fill="none" stroke="var(--accent)" stroke-width="1.4"/>
+        <text x="320" y="161" text-anchor="middle" font-size="13" fill="var(--accent)">orchestrator</text>
+
+        <path d="M320,128 L320,74" fill="none" stroke="var(--accent)" stroke-width="1.4" marker-end="url(#arrow2)"/>
+        <text x="332" y="102" font-size="11" fill="var(--accent)">writes</text>
+
+        <rect x="20" y="236" width="150" height="52" rx="7" fill="none" stroke="currentColor" stroke-width="1.1"/>
+        <text x="95" y="258" text-anchor="middle" font-size="11.5">sub-agent</text>
+        <text x="95" y="273" text-anchor="middle" font-size="10.5" fill="currentColor" opacity="0.65">fast model · review</text>
+
+        <rect x="245" y="236" width="150" height="52" rx="7" fill="none" stroke="currentColor" stroke-width="1.1"/>
+        <text x="320" y="258" text-anchor="middle" font-size="11.5">sub-agent</text>
+        <text x="320" y="273" text-anchor="middle" font-size="10.5" fill="currentColor" opacity="0.65">default model · build</text>
+
+        <rect x="470" y="236" width="150" height="52" rx="7" fill="none" stroke="currentColor" stroke-width="1.1"/>
+        <text x="545" y="258" text-anchor="middle" font-size="11.5">sub-agent</text>
+        <text x="545" y="273" text-anchor="middle" font-size="10.5" fill="currentColor" opacity="0.65">frontier · approved only</text>
+
+        <path d="M95,236 C 150,210 250,196 288,186" fill="none" stroke="currentColor" stroke-width="1.1" marker-end="url(#arrow2)"/>
+        <path d="M320,236 L320,186" fill="none" stroke="currentColor" stroke-width="1.1" marker-end="url(#arrow2)"/>
+        <path d="M545,236 C 490,210 390,196 352,186" fill="none" stroke="currentColor" stroke-width="1.1" marker-end="url(#arrow2)"/>
+        <text x="320" y="212" text-anchor="middle" font-size="11" fill="currentColor" opacity="0.75">returns data</text>
+      </svg>
+      <figcaption>The write boundary: three sub-agents on different model tiers all return data upward to the orchestrator. None has its own path to the repo — that path exists exactly once.</figcaption>
+    </figure>
+  </section>
+
+  <section class="block">
+    <h2 class="section-head"><span class="num">07</span><span class="txt">War story: the silent revert</span></h2>
+    <p>The most useful bug in this system's life didn't look like a memory-architecture problem at all. A "propose changes" flow — the mechanism that turns an agent's edits into a reviewable pull request — started silently discarding entire sessions of work. Files reverted to their prior state, nothing was committed anywhere, and there was no error. It looked, for a while, like an external process interfering, because the actual pattern was a very convincing coincidence: files that happened to have merged recently "survived," and files that hadn't yet "kept reverting" — a correlation that was real, and exactly backwards as evidence.</p>
+    <p>The real cause: a cleanup step that restored the working tree to its pre-change state ran on <em>every</em> exit path out of the function — including the failure path. A pre-flight lint check had been added upstream of the git operations, and it was failing on every single proposal for an environment reason (a spawned linter binary resolving against the wrong runtime version). So the actual sequence, every time, was: make the edits, fail the lint check, revert the files, commit nothing, report nothing. The "survivors" had simply already merged and come back on the next pull, before this bug started; the "victims" hadn't, so the same revert function was the last thing to touch them, over and over.</p>
+
+    <div class="callout">
+      <div class="mark">the rule</div>
+      <p>When something "never works," check whether it's silently switched off, or silently swallowing its own errors, before re-diagnosing the implementation underneath it. A disabled feature and a bare <code class="inline">catch {}</code> both produce symptoms that look exactly like a subtly wrong implementation — and cost far less to rule out first.</p>
+    </div>
+
+    <p>The fix had two parts, and only one of them was the actual lint bug. First, the destructive step moved to run only <em>after</em> a local commit exists — so a failing check now leaves the work recoverable on a branch instead of gone. Second, the test suite gained coverage for the failure path specifically: branch created, content correct, nothing pushed to the remote, working tree clean, the user-facing message naming the recovery branch. That path had zero coverage before, which is exactly why a change that silently ate real work could pass a suite of thirty other assertions without tripping any of them.</p>
+  </section>
+
+  <section class="block">
+    <h2 class="section-head"><span class="txt">What actually carried over</span></h2>
+    <p>Stripped of the specifics, the design principles that survived contact with daily use:</p>
+    <ul class="principles">
+      <li><span class="pn">→</span><span class="pt"><strong>Prefer formats a human can read without a viewer.</strong> Markdown and git over a database, every time the corpus is small enough that this is actually an option.</span></li>
+      <li><span class="pn">→</span><span class="pt"><strong>Derive state; don't hand-maintain it.</strong> Anything a script can compute from git history or the filesystem shouldn't also be a field a human has to remember to update.</span></li>
+      <li><span class="pn">→</span><span class="pt"><strong>Give every write path a trust level, and match the review gate to it.</strong> The same repo can be commit-direct in one place and PR-gated in another — the gate follows the risk, not a blanket policy.</span></li>
+      <li><span class="pn">→</span><span class="pt"><strong>Sub-agents are for parallelism and cost control, not for skipping oversight.</strong> Data flows up; writes flow through exactly one place.</span></li>
+      <li><span class="pn">→</span><span class="pt"><strong>Silent failure is the default failure mode to hunt for first.</strong> An "off" switch and a swallowed error both masquerade as a subtler bug than they are.</span></li>
+      <li><span class="pn">→</span><span class="pt"><strong>The store doesn't need to be a complete record to be useful.</strong> It only needs to beat starting from zero — and it does, by a wide margin.</span></li>
+    </ul>
+  </section>
+
+  <section class="block">
+    <h2 class="section-head"><span class="txt">The honest limits</span></h2>
+    <p>This isn't a life-log and doesn't try to be. There's always a gap between what the system knows and what actually happened, because nobody's narrating their day into a markdown file in real time — the store only ever holds what someone deliberately wrote down. That's a feature to design around, not a flaw to apologize for: a system that states its blind spots plainly is more trustworthy than one that quietly implies it sees everything.</p>
+    <p>Six months in, the interesting part isn't any single mechanism — it's that the whole thing is boring in the right ways, and still passes the test from the top of this piece: it would still be useful with every model gone. The store doesn't <em>need</em> a dashboard to stay trustworthy — a text editor and <code class="inline">git log</code> are still enough to audit any of it — and that's exactly what makes building a dashboard on top a good idea rather than a crutch: a view layered over a substrate that doesn't depend on it, not a substitute for one that does. That's a separate write-up. What carried this one was that the parts that break are debuggable with tools that predate any of this by decades: <code class="inline">git log</code>, <code class="inline">grep</code>, a test suite.</p>
+  </section>
+
+</article>
+
+<footer class="close">
+  architecture notes · written for internal sharing
+</footer>

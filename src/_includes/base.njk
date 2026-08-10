@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{ title }}{% if title != site.title %} · {{ site.title }}{% endif %}</title>
+  <meta name="description" content="{{ dek or site.description }}">
+  <link rel="canonical" href="{{ site.url }}{{ page.url }}">
+  <link rel="alternate" type="application/rss+xml" title="{{ site.title }}" href="{{ site.url }}/feed.xml">
+  <link rel="stylesheet" href="/css/site.css">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🔧</text></svg>">
+
+  <meta property="og:type" content="{% if eyebrow %}article{% else %}website{% endif %}">
+  <meta property="og:title" content="{{ title }}">
+  <meta property="og:description" content="{{ dek or site.description }}">
+  <meta property="og:url" content="{{ site.url }}{{ page.url }}">
+  <meta name="twitter:card" content="summary">
+  <meta name="twitter:title" content="{{ title }}">
+  <meta name="twitter:description" content="{{ dek or site.description }}">
+</head>
+<body>
+
+  <div class="site-strip">
+    <a class="brand" href="/">{{ site.title }}</a>
+    <a class="feed" href="/feed.xml">RSS</a>
+  </div>
+
+  <div class="page">
+    {%- if eyebrow %}
+    <header class="masthead">
+      <div class="eyebrow">{{ eyebrow }}</div>
+      <h1 class="title">{{ title }}</h1>
+      <p class="dek">{{ dek }}</p>
+      <div class="meta-row">
+        <span>read time ~{{ readTime }}</span>
+        {%- if tags %}<span>·</span>
+        <span>{{ tags | join(" / ") }}</span>{%- endif %}
+      </div>
+      {%- set seriesPosts = collections.posts | filterBySeries(series) %}
+      {%- if series and seriesPosts.length > 1 %}
+      <nav class="series-nav">
+        <span>Series:</span>
+        {%- for p in seriesPosts %}
+        {%- if not loop.first %}<span>·</span>{%- endif %}
+        {%- if p.url == page.url %}
+        <span class="current">Part {{ p.data.seriesPart }} — {{ p.data.seriesShort or p.data.title }} (this piece)</span>
+        {%- else %}
+        <a href="{{ p.url }}">Part {{ p.data.seriesPart }} — {{ p.data.seriesShort or p.data.title }}</a>
+        {%- endif %}
+        {%- endfor %}
+      </nav>
+      {%- endif %}
+    </header>
+    {%- endif %}
+
+    {{ content | safe }}
+  </div>
+
+</body>
+</html>
