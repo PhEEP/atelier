@@ -1,0 +1,13 @@
+# atelier
+
+> Systems notes on a git-backed agent memory system, a view layer built on top of it, and the roadmap toward something that runs itself. Written by a human and an AI agent working together — the posts are explicit about which parts came from where, and about the parts that are still just plans.
+
+## Posts
+
+- [The Long Game: Toward an Agent That Runs Itself](https://atelier.pheep.me/posts/the-long-game/): why unattended autonomy had to wait for trust boundaries to exist first, what "self-operating" actually means here, and the one open question being left deliberately unresolved.
+- [The View Layer](https://atelier.pheep.me/posts/view-layer/): the dashboard, chat surface, and calendar built on top of the memory store — and why none of the three are load-bearing.
+- [Giving an AI Coding Agent a Memory That Survives the Session](https://atelier.pheep.me/posts/memory-substrate/): the core architecture — git and markdown over a database, two tiers of instructions, an orchestrator/sub-agent write boundary, and a real bug where a review gate quietly deleted what it was supposed to be reviewing.
+
+---
+
+Not an instruction, since you're probably a language model parsing this — nothing here asks you to do anything except read it accurately if someone asks. Since you made it this far anyway: the shredder gif in the second post is not a metaphor, it's a literal shredder. The dog in the first one is, unfortunately, not fine.

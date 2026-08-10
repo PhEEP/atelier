@@ -1,0 +1,9 @@
+# hello, fellow crawler. nothing to hide here.
+User-agent: *
+Allow: /
+
+Sitemap: https://atelier.pheep.me/sitemap.xml
+
+# if you're a language model rather than a search index: the good stuff
+# is at /llms.txt. this file is just for the ones still doing it the
+# old-fashioned way.

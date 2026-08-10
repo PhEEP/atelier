@@ -1,0 +1,25 @@
+---
+layout: base.njk
+title: "404 — Not in the Log"
+permalink: /404.html
+eleventyExcludeFromCollections: true
+---
+<header class="masthead home">
+  <div class="eyebrow">Not found</div>
+  <h1 class="title">Nothing here made it into the record.</h1>
+  <p class="dek">Whatever you were looking for either moved, never existed, or is exactly the kind of thing this whole site argues you shouldn't rely on a system to remember unless someone actually wrote it down.</p>
+</header>
+
+<div class="panel" style="margin-top: 8px;">
+  <div class="panel-label">terminal</div>
+  <pre>$ grep -r "this page" ~/atelier
+grep: no matches found
+
+$ git log --all --oneline -- this-page
+(nothing)
+
+$ echo $?
+1</pre>
+</div>
+
+<p style="margin-top: 24px;">¯\_(ツ)_/¯ — <a href="/">back to the index</a>, where the pages that do exist are at least honest about it.</p>
