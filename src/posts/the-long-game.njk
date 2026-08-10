@@ -1,0 +1,63 @@
+---
+layout: base.njk
+title: "The Long Game: Toward an Agent That Runs Itself"
+eyebrow: "Systems note — architecture, part three"
+dek: "Parts one and two built a store and a view onto it. Neither was actually the destination. This is about what they were runway for, and why the boring parts had to come first."
+date: 2026-08-10T20:30:00
+readTime: "8 min"
+tags: ["architecture", "autonomy", "roadmap"]
+series: "systems-notes"
+seriesPart: 3
+seriesTotal: 3
+seriesShort: "the long game"
+permalink: /posts/the-long-game/index.html
+---
+<article>
+
+  <section class="block">
+    <h2 class="section-head"><span class="txt">Naming the actual destination</span></h2>
+    <p class="lede">Read the first two pieces on their own and you could mistake the memory store and the dashboard for the whole project. They're not. They're the part that had to exist before the part I actually want, which is an agent that can act on a schedule, on its own initiative, without me sitting there watching every step.</p>
+    <p>Not the vague version of that sentence. Concretely: things that start without me starting them. A job that runs at 2am because it's supposed to, not because I opened a laptop and typed a command. Something that notices its own memory is thin in a spot and goes and fixes that, on its own, inside rules I set once instead of approvals I grant every time.</p>
+    <p>That's a real capability gap from where things stand today, and it's worth saying so plainly instead of implying it's basically done. Nothing in this system runs unattended yet except a couple of low-stakes housekeeping jobs. This piece is about why that's the right amount of unattended right now, and what has to be true before there's more of it.</p>
+  </section>
+
+  <section class="block">
+    <h2 class="section-head"><span class="num">01</span><span class="txt">Why the boring parts had to come first</span></h2>
+    <p>Everything in parts one and two that felt like caution — write paths tiered by trust, a review gate that can reject but never delete, sub-agents that hand back data instead of touching the store directly — wasn't caution for its own sake. It was runway. An agent working while I'm asleep, with nobody watching, needs those boundaries to already be solid, not aspirational. The gate that rejects instead of destroying isn't a nice property for an interactive chat session. It's the actual precondition for letting anything run without me in the room.</p>
+    <p>Put it the other way: I couldn't have built the unattended version first and bolted trust boundaries on after, because by the time something's already running unsupervised, "add a safety rail" is a very different, much scarier project than "build on top of one that's already there and already tested."</p>
+
+    <figure class="meme">
+      <img src="https://media.tenor.com/43sWEv9rN_MAAAAM/pylon-starcraft.gif" alt="StarCraft's 'you must construct additional pylons' warning." loading="lazy">
+      <figcaption>every autonomy feature I've wanted to build, blocked on infrastructure I hadn't built yet</figcaption>
+    </figure>
+  </section>
+
+  <section class="block">
+    <h2 class="section-head"><span class="num">02</span><span class="txt">What "self-operating" actually means here</span></h2>
+    <p>Not one big switch. Three specific, mostly-already-real pieces:</p>
+    <ul>
+      <li><strong>A cost-tiered model router.</strong> Already covered in part one for interactive work — cheap model for validation, mid-tier default, frontier model only when it's earned and flagged. The same router has to apply to unattended runs, probably more strictly, since nobody's there in the moment to notice a job quietly burning the expensive model on something trivial.</li>
+      <li><strong>A memory loop that actually compounds.</strong> Not just facts accumulating — the auto-memory system from part one already does that — but patterns: what worked, what got corrected twice, what's worth doing differently next time. The difference between a system that remembers and one that gets better at remembering the right things.</li>
+      <li><strong>Scheduled runs in real isolation.</strong> This is the mechanical piece, and it's the one most different from anything in parts one or two.</li>
+    </ul>
+    <p>That third one deserves the actual explanation. An interactive session has a person watching, so if it does something wrong there's a human right there to catch it mid-turn. A scheduled job has nobody. Which means it can't share the same working copy an interactive session uses — there's no one around to notice if it wanders off and leaves the tree in a weird state. So it gets its own disposable copy, does its work in complete isolation from everything else, and only ever touches the real store through the exact same review gate every other write path goes through. Different execution model, identical trust boundary. The isolation is new. The rule that governs what it's allowed to do isn't.</p>
+  </section>
+
+  <section class="block">
+    <h2 class="section-head"><span class="num">03</span><span class="txt">The first real unattended agent</span></h2>
+    <p>Small on purpose. The plan on the table right now is a nightly job that checks for dependency security alerts and triages them — not by whatever severity label got attached, but by whether the flagged package is actually reachable at runtime, the same way I'd triage it by hand. A low-risk, mechanical fix — a patch-level bump on something that's dev-only, no breaking-change note — gets opened as a PR. Anything ambiguous, anything that touches a runtime-reachable package, gets a note instead of an action. Nothing auto-merges. Ever. A human still has to look at every single thing this agent proposes before it lands, same as any other write path in this system.</p>
+    <p>That's a deliberately unglamorous first job. It's also exactly the same restraint the calendar's mechanical-only first version used, applied to autonomy itself instead of to a feature. Ship the boring, reversible, fully-inspectable version. Let it actually run for a while. Only then find out whether it's earned the right to do more.</p>
+  </section>
+
+  <section class="block">
+    <h2 class="section-head"><span class="num">04</span><span class="txt">The one thread I'm leaving open on purpose</span></h2>
+    <p>Everything above leans on hosted models the whole way through. Running models locally would cut that dependency out entirely, and it's a real, live question — just not one I'm answering yet. The hardware sitting around right now isn't a fair test of whether local models are actually good enough for this; testing on it would measure the hardware's limits, not the models'. So it's parked, not avoided. Whatever it costs to fix that gets weighed against everything else worth spending on, when there's an actual reason to spend it — not guessed at now because the question is sitting there unanswered and that itches a little.</p>
+  </section>
+
+  <section class="block">
+    <h2 class="section-head"><span class="txt">The throughline, if there is one</span></h2>
+    <p>Every "not yet" across all three of these pieces is the same instinct wearing a different hat. The calendar's interpretation layer, parked until there's a real pattern of use to design against. Autonomy, scoped down to one low-stakes job instead of a general-purpose agent runtime. Local inference, parked until the hardware question actually has an honest answer. None of those are the ambitious version getting abandoned. They're the ambitious version waiting for the evidence that would make it a decision instead of a guess.</p>
+    <p>Restraint isn't the opposite of ambition here. It's how the ambitious version gets earned instead of shipped half-informed and walked back later. Slower than I'd probably like. Also the only way I actually trust what gets built at the end of it.</p>
+  </section>
+
+</article>
