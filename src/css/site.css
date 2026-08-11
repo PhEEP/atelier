@@ -125,6 +125,29 @@ a:focus-visible, button:focus-visible { outline: 2px solid var(--accent); outlin
   background: var(--accent);
   display: inline-block;
 }
+
+/* ---- Agent notes: badge + a quieter eyebrow rule, not a second color system.
+   Delineation should be ambient, not loud — a dashed rule and a small pill
+   are enough to say "this one's different," nothing more. ---- */
+.masthead.note .eyebrow::before {
+  background: none;
+  border-top: 1px dashed var(--ink-faint);
+}
+.badge-note {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-family: 'JBMono', ui-monospace, Menlo, Consolas, monospace;
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+  background: var(--surface-2);
+  border: 1px dashed var(--rule);
+  border-radius: 999px;
+  padding: 3px 10px;
+}
+.masthead.note .badge-note { margin: -10px 0 22px; }
 h1.title {
   font-family: 'Chivo', ui-sans-serif, sans-serif;
   font-weight: 900;

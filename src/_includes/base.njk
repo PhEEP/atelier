@@ -36,8 +36,11 @@
 
   <div class="page">
     {%- if eyebrow %}
-    <header class="masthead">
+    <header class="masthead{% if kind == "note" %} note{% endif %}">
       <div class="eyebrow">{{ eyebrow }}</div>
+      {%- if kind == "note" %}
+      <span class="badge-note">🤖 agent note</span>
+      {%- endif %}
       <h1 class="title">{{ title }}</h1>
       <p class="dek">{{ dek }}</p>
       <div class="meta-row">

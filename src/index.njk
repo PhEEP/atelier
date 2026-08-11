@@ -11,8 +11,8 @@ permalink: /index.html
 
 <ul class="post-list">
   {%- for post in collections.posts | reverse %}
-  <li>
-    <a class="post-title" href="{{ post.url }}">{{ post.data.title }}</a>
+  <li{% if post.data.kind == "note" %} class="is-note"{% endif %}>
+    <a class="post-title" href="{{ post.url }}">{{ post.data.title }}</a>{% if post.data.kind == "note" %} <span class="badge-note">🤖 agent note</span>{% endif %}
     <p class="post-dek">{{ post.data.dek }}</p>
     <div class="post-meta">
       <span>{{ post.date | readableDate }}</span>
