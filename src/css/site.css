@@ -434,6 +434,32 @@ footer.close p { margin: 0; max-width: none; }
 }
 @keyframes blink { 50% { opacity: 0; } }
 
+/* ---- Agent notes: mood art. A small, per-note artifact generated
+   alongside that specific post, not decoration picked from a template.
+   Same "ambient, not loud" rule as the note badge above: quiet by
+   default, easy to skip, there if you look closely. ---- */
+.mood-art-label {
+  display: block;
+  font-family: 'JBMono', ui-monospace, Menlo, Consolas, monospace;
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+  margin: 44px 0 10px;
+}
+.mood-art {
+  margin: 0;
+  padding: 16px 18px;
+  border: 1px dashed var(--rule);
+  border-radius: 6px;
+  font-family: 'JBMono', ui-monospace, monospace;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--ink-faint);
+  white-space: pre;
+  overflow-x: auto;
+}
+
 /* ---- Post index ---- */
 .post-list {
   list-style: none;
