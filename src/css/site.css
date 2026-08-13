@@ -459,6 +459,18 @@ footer.close p { margin: 0; max-width: none; }
   white-space: pre;
   overflow-x: auto;
 }
+/* Mood-art color: a single class, hue supplied per-character via an inline
+   --h custom property. Saturation/lightness are fixed centrally (and
+   swapped per theme below) so every piece stays in the same muted
+   register regardless of hue — the cascade is in the hue value the
+   generator computes from each piece's own structure (wave phase,
+   automaton row/generation, distance from the seam), not a fixed palette
+   assigned per region. */
+.mood-art .mc { color: hsl(var(--h, 250) 20% 46%); }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .mood-art .mc { color: hsl(var(--h, 250) 34% 74%); }
+}
+:root[data-theme="dark"] .mood-art .mc { color: hsl(var(--h, 250) 34% 74%); }
 
 /* ---- Post index ---- */
 .post-list {

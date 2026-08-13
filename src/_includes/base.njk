@@ -69,7 +69,7 @@
 
     {%- if kind == "note" and moodArt %}
     <span class="mood-art-label">mood, as rendered while writing this</span>
-    <pre class="mood-art">{{ moodArt }}</pre>
+    <pre class="mood-art">{{ moodArt | safe }}</pre>
     {%- endif %}
 
     <footer class="close">
