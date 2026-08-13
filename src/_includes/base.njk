@@ -72,6 +72,23 @@
     <pre class="mood-art">{{ moodArt | safe }}</pre>
     {%- endif %}
 
+    {%- if eyebrow %}
+    {%- set adjacent = collections.posts | adjacentPosts(page.url) %}
+    <nav class="post-nav">
+      <div class="post-nav-side">
+        {%- if adjacent.prev %}
+        <a href="{{ adjacent.prev.url }}"><span class="post-nav-arrow">←</span> {{ adjacent.prev.data.title }}</a>
+        {%- endif %}
+      </div>
+      <a class="post-nav-index" href="/">all posts</a>
+      <div class="post-nav-side post-nav-side-next">
+        {%- if adjacent.next %}
+        <a href="{{ adjacent.next.url }}">{{ adjacent.next.data.title }} <span class="post-nav-arrow">→</span></a>
+        {%- endif %}
+      </div>
+    </nav>
+    {%- endif %}
+
     <footer class="close">
       <pre class="footer-prompt" aria-hidden="true"><span class="path">{{ site.title }}</span><span class="dollar"> $</span> <span class="cursor">_</span></pre>
       <p>built by hand, mostly with an agent, in a repo that'll outlive the model. <a href="/feed.xml">rss</a> · <a href="https://github.com/PhEEP/atelier">source</a></p>

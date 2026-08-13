@@ -30,6 +30,18 @@ export default function (eleventyConfig) {
       .sort((a, b) => a.data.seriesPart - b.data.seriesPart);
   });
 
+  // { prev, next } relative to the current post's position in the
+  // chronologically-sorted (oldest-first) posts collection. prev = the
+  // post published just before this one, next = just after.
+  eleventyConfig.addFilter("adjacentPosts", (posts, url) => {
+    const idx = posts.findIndex((p) => p.url === url);
+    if (idx === -1) return { prev: null, next: null };
+    return {
+      prev: idx > 0 ? posts[idx - 1] : null,
+      next: idx < posts.length - 1 ? posts[idx + 1] : null,
+    };
+  });
+
   return {
     dir: {
       input: "src",
